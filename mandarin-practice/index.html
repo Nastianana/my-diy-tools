@@ -29,7 +29,6 @@
             margin: 0 auto;
         }
 
-        /* 模式切换 */
         .mode-tabs {
             display: flex;
             gap: 16px;
@@ -83,7 +82,6 @@
             border-radius: 40px;
         }
 
-        /* 通用按钮样式 */
         button, label.btn-like {
             background: #E3E5CF;
             border: none;
@@ -273,7 +271,6 @@
         <button class="mode-btn" data-mode="review">复习</button>
     </div>
 
-    <!-- 读文章模块 -->
     <div id="readPanel" class="panel">
         <div class="card">
             <div class="card-title">资料库</div>
@@ -324,7 +321,6 @@
         </div>
     </div>
 
-    <!-- 复习模块 -->
     <div id="reviewPanel" class="panel" style="display:none;">
         <div class="card">
             <div class="card-title">错题本复习</div>
@@ -365,17 +361,15 @@
         setTimeout(() => toast.remove(), 2000);
     }
 
-    // 直接发音，无需任何启用步骤
+    // 核心发音函数：移除 cancel，直接 speak
     function speakText(text) {
         if (!text) return;
-        // 取消任何正在播放的语音，避免重叠
-        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'zh-CN';
         utterance.rate = 0.9;
         utterance.onerror = (e) => {
             console.error('语音错误', e);
-            // 静默失败，不打扰用户
+            // 不打扰用户，静默失败
         };
         window.speechSynthesis.speak(utterance);
     }
