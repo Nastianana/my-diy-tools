@@ -29,6 +29,7 @@
             margin: 0 auto;
         }
 
+        /* 模式切换 */
         .mode-tabs {
             display: flex;
             gap: 16px;
@@ -53,6 +54,28 @@
         }
         .mode-btn:hover {
             background: #91A67C;
+        }
+
+        /* 语音启用按钮区域 */
+        .speech-enable-area {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #enableSpeechBtn {
+            background: #6c757d;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 32px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            color: white;
+            display: inline-block;
+        }
+        #enableSpeechBtn.enabled {
+            background: #F2D57E;
+            color: white;
         }
 
         .card {
@@ -181,6 +204,9 @@
         .delete-btn-container {
             margin-top: 16px;
             text-align: left;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
         .toast {
@@ -197,7 +223,6 @@
             pointer-events: none;
         }
 
-        /* 复习模块统计框背景色改为 #E3E5CF */
         .review-stats {
             background: #E3E5CF;
             padding: 12px;
@@ -215,7 +240,6 @@
             overflow-y: auto;
             transition: font-size 0.1s;
         }
-        /* 错字词条背景色改为文章底图颜色 #fefce8 */
         .word-badge {
             background: #fefce8;
             padding: 8px 16px;
@@ -271,6 +295,11 @@
         <button class="mode-btn" data-mode="review">复习</button>
     </div>
 
+    <!-- 语音启用按钮区域（挪到选项卡下方） -->
+    <div class="speech-enable-area">
+        <button id="enableSpeechBtn">点击启用语音</button>
+    </div>
+
     <!-- 读文章模块 -->
     <div id="readPanel" class="panel">
         <div class="card">
@@ -281,9 +310,10 @@
                     <option value="chabie">差别</option>
                     <option value="choushi">丑石</option>
                     <option value="darui">达瑞的故事</option>
+                    <option value="xue">第一场雪</option>
+                    <option value="dushu">读书人是幸福人</option>
                 </select>
                 <button id="togglePinyinBtn">显示拼音</button>
-                <span>字号</span>
                 <button id="fontMinus" class="small">A-</button>
                 <button id="fontPlus" class="small">A+</button>
             </div>
@@ -292,6 +322,7 @@
             </div>
             <div class="delete-btn-container">
                 <button id="deleteCustomBtn" class="gray small">删除当前文章</button>
+                <button id="renameArticleBtn" class="gray small">重命名文章标题</button>
             </div>
         </div>
 
@@ -329,8 +360,6 @@
                 <button id="togglePinyinReview" class="small">显示拼音</button>
                 <button id="reviewEbbinghaus" class="small">艾宾浩斯今日复习</button>
                 <button id="addCustomErrorBtn" class="small">新增错字</button>
-                <span style="flex:1"></span>
-                <span>字号</span>
                 <button id="reviewFontMinus" class="small">A-</button>
                 <button id="reviewFontPlus" class="small">A+</button>
             </div>
@@ -344,16 +373,18 @@
 </div>
 
 <script>
-    // 全局变量（与之前完全相同，未作任何功能修改）
+    // ---------- 全局 ----------
     let errorWords = [];
     let articlesDB = [];
     let currentArticle = null;
     let currentCustomTokens = [];
     let showPinyinArticle = false;
     let showPinyinCustom = false;
-    let fontSize = 1.2;
-    let reviewFontSize = 1.2;
+    let fontSize = 1.2;   // 读文章区域字体基准
+    let reviewFontSize = 1.2; // 复习模块错字列表字体基准
     let showPinyinReview = false;
+
+    let speechEnabled = false;
 
     function showToast(msg) {
         let toast = document.createElement('div');
@@ -362,6 +393,37 @@
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 2000);
     }
+
+    function speakText(text) {
+        if (!text) return;
+        if (!speechEnabled) {
+            showToast('请先点击“点击启用语音”按钮');
+            return;
+        }
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        utterance.rate = 0.9;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function enableSpeech() {
+        // 尝试播放一个极短的空语音来激活权限
+        const utterance = new SpeechSynthesisUtterance(' ');
+        utterance.lang = 'zh-CN';
+        utterance.volume = 0;
+        speechSynthesis.speak(utterance);
+        speechEnabled = true;
+        const btn = document.getElementById('enableSpeechBtn');
+        btn.innerText = '已启用语音点读';
+        btn.classList.add('enabled');
+        showToast('语音已启用，现在可以点击汉字发音');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const enableBtn = document.getElementById('enableSpeechBtn');
+        if (enableBtn) enableBtn.addEventListener('click', enableSpeech);
+    });
 
     async function generateTokensFromText(text, articleId = null) {
         if (!window.pinyinPro) return [];
@@ -401,6 +463,7 @@
         return { paragraphs, tokensList };
     }
 
+    // ---------- 文章数据 ----------
     const baiyangRaw = `那是力争上游的一种树，笔直的干，笔直的枝。它的干呢，通常是丈把高，像是加以人工似的，一丈以内，绝无旁枝；它所有的桠枝呢，一律向上，而且紧紧靠拢，也像是加以人工似的，成为一束，绝无横斜逸出。它的宽大的叶子也是片片向上，几乎没有斜生的，更不用说倒垂了；它的皮，光滑而有银色的晕圈，微微泛出淡青色。这是虽在北方的风雪的下却保持着倔强挺立的一种树！哪怕只有碗来粗细罢，它却努力向上发展，高到丈许，两丈，参天耸立，不折不挠，对抗着西北风。
 
 这就是白杨树，西北极普通的一种树，然而决不是平凡的树。
@@ -438,16 +501,36 @@
 很快他又有了新的机会，他让他的顾客每天把垃圾袋放在门前，然后由他早上运到垃圾桶里，每个月加一美元。之后他还想出了许多孩子赚钱的办法，并把它集结成书，书名为《儿童挣钱的二百五十个主意》。为此，达瑞十二岁时就成了畅销书作家，十五岁有了自己的谈话节目，十七岁就拥有了几百万美元。
 节选自[德]博多·舍费尔《达瑞的故事》`;
 
+    const xueRaw = `这是入冬以来，胶东半岛上第一场雪。
+雪纷纷扬扬，下得很大。开始还伴着一阵儿小雨，不久就只见大片大片的雪花，从彤云密布的天空中飘落下来。地面上一会儿就白了。
+冬天的山村，到了夜里就万籁俱寂，只听得雪花簌簌地不断往下落，树木的枯枝被雪压断了，偶尔咯吱一声响。
+大雪整整下了一夜。今天早晨，天放晴了，太阳出来了。推开门一看，嗬！好大的雪啊！山川、河流、树木、房屋，全都罩上了一层厚厚的雪，万里江山，变成了粉妆玉砌的世界。落光了叶子的柳树上挂满了毛茸茸亮晶晶的银条儿；而那些冬夏常青的松树和柏树上，则挂满了蓬松松沉甸甸的雪球儿。一阵风吹来，树枝轻轻地摇晃，美丽的银条儿和雪球儿簌簌地落下来，玉屑似的雪末儿随风飘扬，映着清晨的阳光，显出一道道五光十色的彩虹。
+大街上的积雪足有一尺多深，人踩上去，脚底下发出咯吱咯吱的响声。一群群孩子在雪地里堆雪人，掷雪球儿。那欢乐的叫喊声，把树枝上的雪都震落下来了。
+俗话说，“瑞雪兆丰年”。这个话有充分的科学根据，并不是一句迷信的成语。寒冬大雪，可以冻死一部分越冬的害虫；融化了的水渗进土层深处，又能供应庄稼生长的需要。我相信这一场十分及时的大雪，一定会促进明年春季作物，尤其是小麦的丰收。有经验的老农把雪比做是“麦子的棉被”。冬天“棉被”盖得越厚，明春麦子就长得越好，所以又有这样一句谚语：“冬天麦盖三层被，来年枕着馒头睡”。
+我想，这就是人们为什么把及时的大雪称为“瑞雪”的道理吧。
+节选自峻青《第一场雪》`;
+
+    const dushuRaw = `我常想读书人是世间幸福人，因为他除了拥有现实的世界之外，还拥有另一个更为浩瀚也更为丰富的世界。现实的世界是人人都有的，而后一个世界却为读书人所独有。由此我想，那些失去或不能阅读的人是多么的不幸，他们的丧失是不可补偿的。
+世间有诸多的不平等，财富的不平等，权力的不平等，而阅读能力的拥有或丧失却体现为精神的不平等。
+一个人的一生，只能经历自己拥有的那一份欣悦，那一份苦难，也许再加上他亲自闻知的那一些关于自身以外的经历和经验。然而，人们通过阅读，却能进入不同时空的诸多他人的世界。这样，具有阅读能力的人，无形间获得了超越有限生命的无限可能性。阅读不仅使他多识了草木虫鱼之名，而且可以上溯远古下及未来，饱览存在的与非存在的奇风异俗。
+更为重要的是，读书加惠于人们的不仅是知识的增广，而且还在于精神的感化与陶冶。人们从读书学做人，从那些往哲先贤以及当代才俊的著述中学得他们的人格。人们从《论语》中学得智慧的思考，从《史记》中学得严肃的历史精神，从《正气歌》中学得人格的刚烈，从马克思学得人世的激情，从鲁迅学得批判精神，从托尔斯泰学得道德的执着。
+歌德的诗句刻写着睿智的人生，拜伦的诗句呼唤着奋斗的热情。一个读书人，一个有机会拥有超乎个人生命体验的幸运人。
+节选自谢冕《读书人是幸福人》`;
+
     async function initArticles() {
         const baiyangParsed = await parseArticleWithParagraphs(baiyangRaw, 'baiyang');
         const chabieParsed = await parseArticleWithParagraphs(chabieRaw);
         const choushiParsed = await parseArticleWithParagraphs(choushiRaw);
         const daruiParsed = await parseArticleWithParagraphs(daruiRaw);
+        const xueParsed = await parseArticleWithParagraphs(xueRaw);
+        const dushuParsed = await parseArticleWithParagraphs(dushuRaw);
         articlesDB = [
             { id: 'baiyang', title: '白杨礼赞', paragraphs: baiyangParsed.paragraphs, tokensList: baiyangParsed.tokensList, isBuiltin: true },
             { id: 'chabie', title: '差别', paragraphs: chabieParsed.paragraphs, tokensList: chabieParsed.tokensList, isBuiltin: true },
             { id: 'choushi', title: '丑石', paragraphs: choushiParsed.paragraphs, tokensList: choushiParsed.tokensList, isBuiltin: true },
-            { id: 'darui', title: '达瑞的故事', paragraphs: daruiParsed.paragraphs, tokensList: daruiParsed.tokensList, isBuiltin: true }
+            { id: 'darui', title: '达瑞的故事', paragraphs: daruiParsed.paragraphs, tokensList: daruiParsed.tokensList, isBuiltin: true },
+            { id: 'xue', title: '第一场雪', paragraphs: xueParsed.paragraphs, tokensList: xueParsed.tokensList, isBuiltin: true },
+            { id: 'dushu', title: '读书人是幸福人', paragraphs: dushuParsed.paragraphs, tokensList: dushuParsed.tokensList, isBuiltin: true }
         ];
         localStorage.setItem('articlesDB', JSON.stringify(articlesDB));
     }
@@ -499,14 +582,6 @@
         } else {
             elements = container.querySelectorAll('.char');
         }
-        const speak = (text) => {
-            if (!text) return;
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'zh-CN';
-            utterance.rate = 0.9;
-            window.speechSynthesis.cancel();
-            window.speechSynthesis.speak(utterance);
-        };
         const addToMistake = (word) => {
             let existing = errorWords.find(e => e.word === word);
             if (existing) {
@@ -535,7 +610,7 @@
             if (!word) return;
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
-                speak(word);
+                speakText(word);
             });
             el.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
@@ -636,10 +711,7 @@
             const id = parseInt(el.getAttribute('data-id'));
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const utterance = new SpeechSynthesisUtterance(word);
-                utterance.lang = 'zh-CN';
-                window.speechSynthesis.cancel();
-                window.speechSynthesis.speak(utterance);
+                speakText(word);
             });
             el.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
@@ -745,6 +817,24 @@
         }
     }
 
+    function renameCurrentArticle() {
+        if (!currentArticle) {
+            showToast('没有选中文章');
+            return;
+        }
+        if (currentArticle.isBuiltin) {
+            showToast('内置文章不能重命名');
+            return;
+        }
+        let newTitle = prompt('请输入新的文章标题', currentArticle.title);
+        if (newTitle && newTitle.trim()) {
+            currentArticle.title = newTitle.trim();
+            localStorage.setItem('articlesDB', JSON.stringify(articlesDB));
+            updateArticleSelect();
+            showToast(`已重命名为“${currentArticle.title}”`);
+        }
+    }
+
     function updateArticleSelect() {
         const select = document.getElementById('articleSelect');
         select.innerHTML = '';
@@ -786,6 +876,7 @@
             switchArticle(e.target.value);
         });
         document.getElementById('deleteCustomBtn').addEventListener('click', deleteCurrentArticle);
+        document.getElementById('renameArticleBtn').addEventListener('click', renameCurrentArticle);
         document.getElementById('togglePinyinBtn').addEventListener('click', () => {
             showPinyinArticle = !showPinyinArticle;
             renderArticleReader();
