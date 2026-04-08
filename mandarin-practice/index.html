@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>普通话练习 - 读文章 复习</title>
+    <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.19.6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, button, .mode-btn, label.btn-like, select, .word-badge {
+            font-family: "Source Han Serif CN SemiBold", "思源宋体 SemiBold", "Source Han Serif", "Noto Serif CJK SC", serif;
+        }
+
+        body {
+            background: #F2F2DF;
+            color: #112612;
+            padding: 16px;
+            padding-bottom: 80px;
+        }
+
+        .app {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .mode-tabs {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+        .mode-btn {
+            flex: 1;
+            max-width: 200px;
+            background: #E3E5CF;
+            border: none;
+            padding: 12px 20px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #112612;
+        }
+        .mode-btn.active {
+            background: #F2D57E;
+        }
+        .mode-btn:hover {
+            background: #91A67C;
+        }
+
+        .card {
+            background: white;
+            border-radius: 32px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 16px;
+            border-left: 5px solid #112612;
+            padding-left: 16px;
+            color: #112612;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 40px;
+        }
+
+        /* 通用按钮样式 */
+        button, label.btn-like {
+            background: #E3E5CF;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 32px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: 500;
+            color: #112612;
+            display: inline-block;
+            text-align: center;
+        }
+        button:hover, label.btn-like:hover {
+            background: #91A67C;
+        }
+        button:active, label.btn-like:active {
+            background: #F2D57E;
+        }
+
+        button.small {
+            padding: 4px 12px;
+            font-size: 0.8rem;
+        }
+        button.primary {
+            background: #E3E5CF;
+            color: #112612;
+        }
+        button.primary:hover {
+            background: #91A67C;
+        }
+        button.gray {
+            background: #6c757d;
+            color: white;
+        }
+        button.gray:hover {
+            background: #5a6268;
+        }
+        select {
+            padding: 6px 12px;
+            border-radius: 32px;
+            border: 1px solid #cbd5e1;
+            background: white;
+            font-size: 0.9rem;
+            color: #112612;
+        }
+
+        .reading-area {
+            background: #fefce8;
+            border-radius: 28px;
+            padding: 20px;
+            transition: all 0.1s;
+            word-break: break-word;
+            overflow-x: auto;
+            color: #112612;
+        }
+        .reading-area p {
+            margin-bottom: 1.2em;
+            text-indent: 2em;
+            line-height: 2.2;
+            letter-spacing: normal;
+        }
+        .reading-area .char {
+            display: inline;
+            cursor: pointer;
+            margin: 0;
+            padding: 0;
+            color: #112612;
+        }
+        .reading-area .pinyin-wrapper {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+            cursor: pointer;
+            margin: 0;
+            padding: 0;
+        }
+        .reading-area .pinyin {
+            font-size: 1.1em;
+            color: #1E5922;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+        .reading-area .hanzi {
+            font-size: 1em;
+            line-height: 1.4;
+            color: #112612;
+        }
+        .reading-area .punc {
+            display: inline;
+            color: #112612;
+        }
+
+        .delete-btn-container {
+            margin-top: 16px;
+            text-align: left;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #F2D57E;
+            color: #112612;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        /* 复习模块统计框背景色改为 #E3E5CF */
+        .review-stats {
+            background: #E3E5CF;
+            padding: 12px;
+            border-radius: 28px;
+            margin-bottom: 20px;
+            font-size: 1rem;
+            color: #112612;
+        }
+        .word-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+            transition: font-size 0.1s;
+        }
+        /* 错字词条背景色改为文章底图颜色 #fefce8 */
+        .word-badge {
+            background: #fefce8;
+            padding: 8px 16px;
+            border-radius: 40px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #112612;
+        }
+        .word-badge .pinyin-part {
+            font-size: 0.8em;
+            color: #1E5922;
+        }
+
+        .add-text-area {
+            margin-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 20px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border-radius: 24px;
+            border: 1px solid #cbd5e1;
+            font-size: 1rem;
+            font-family: inherit;
+            color: #112612;
+        }
+        .flex-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin: 12px 0;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #112612;
+            margin-top: 20px;
+        }
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .card-title { font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="mode-tabs">
+        <button class="mode-btn active" data-mode="read">读文章</button>
+        <button class="mode-btn" data-mode="review">复习</button>
+    </div>
+
+    <!-- 读文章模块 -->
+    <div id="readPanel" class="panel">
+        <div class="card">
+            <div class="card-title">资料库</div>
+            <div class="toolbar">
+                <select id="articleSelect">
+                    <option value="baiyang">白杨礼赞</option>
+                    <option value="chabie">差别</option>
+                    <option value="choushi">丑石</option>
+                    <option value="darui">达瑞的故事</option>
+                </select>
+                <button id="togglePinyinBtn">显示拼音</button>
+                <span>字号</span>
+                <button id="fontMinus" class="small">A-</button>
+                <button id="fontPlus" class="small">A+</button>
+            </div>
+            <div id="articleReader" class="reading-area">
+                请选择文章
+            </div>
+            <div class="delete-btn-container">
+                <button id="deleteCustomBtn" class="gray small">删除当前文章</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">添加文本或图片</div>
+            <div class="add-text-area">
+                <textarea id="customText" rows="3" placeholder="在此输入或粘贴中文文本..."></textarea>
+                <div class="flex-row">
+                    <button id="generateFromTextBtn" class="primary">生成拼音文本</button>
+                    <label class="btn-like" id="uploadImageLabel">
+                        上传图片识别
+                        <input type="file" id="imageUpload" accept="image/*" style="display:none">
+                    </label>
+                </div>
+                <div id="ocrStatus" style="font-size:0.8rem; color:#475569;"></div>
+            </div>
+            <div class="toolbar" style="margin-top:8px;">
+                <button id="customTogglePinyin">显示拼音</button>
+                <button id="customAddToCorpus" class="primary">存入资料库</button>
+                <span style="flex:1"></span>
+                <button id="clearCustom">清空</button>
+            </div>
+            <div id="customReader" class="reading-area">
+                等待生成文本...
+            </div>
+        </div>
+    </div>
+
+    <!-- 复习模块 -->
+    <div id="reviewPanel" class="panel" style="display:none;">
+        <div class="card">
+            <div class="card-title">错题本复习</div>
+            <div class="toolbar">
+                <button id="sortByNew" class="small">新旧顺序</button>
+                <button id="togglePinyinReview" class="small">显示拼音</button>
+                <button id="reviewEbbinghaus" class="small">艾宾浩斯今日复习</button>
+                <button id="addCustomErrorBtn" class="small">新增错字</button>
+                <span style="flex:1"></span>
+                <span>字号</span>
+                <button id="reviewFontMinus" class="small">A-</button>
+                <button id="reviewFontPlus" class="small">A+</button>
+            </div>
+            <div id="reviewContent">
+                <div class="review-stats" id="reviewStats"></div>
+                <div id="wordListContainer" class="word-list"></div>
+            </div>
+        </div>
+    </div>
+    <footer>左键单击发音，右键单击加入错题本 | 复习模块右键单击错字删除</footer>
+</div>
+
+<script>
+    // 全局变量（与之前完全相同，未作任何功能修改）
+    let errorWords = [];
+    let articlesDB = [];
+    let currentArticle = null;
+    let currentCustomTokens = [];
+    let showPinyinArticle = false;
+    let showPinyinCustom = false;
+    let fontSize = 1.2;
+    let reviewFontSize = 1.2;
+    let showPinyinReview = false;
+
+    function showToast(msg) {
+        let toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerText = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    }
+
+    async function generateTokensFromText(text, articleId = null) {
+        if (!window.pinyinPro) return [];
+        const { pinyin } = window.pinyinPro;
+        const chars = text.split('');
+        const tokens = [];
+        for (let i = 0; i < chars.length; i++) {
+            let ch = chars[i];
+            if (/[\u4e00-\u9fa5]/.test(ch)) {
+                let py = pinyin(ch, { toneType: 'symbol' });
+                if (articleId === 'baiyang' && ch === '干') {
+                    const prev = i > 0 ? chars[i-1] : '';
+                    const next = i < chars.length-1 ? chars[i+1] : '';
+                    if (prev === '的' && (next === '，' || next === '。' || next === '；' || next === ' ')) {
+                        py = 'gàn';
+                    }
+                }
+                tokens.push({ char: ch, pinyin: py });
+            } else {
+                tokens.push({ char: ch, pinyin: ch });
+            }
+        }
+        return tokens;
+    }
+
+    async function parseArticleWithParagraphs(rawText, articleId = null) {
+        let paragraphs = rawText.split(/\n\s*\n/);
+        if (paragraphs.length === 1) {
+            paragraphs = rawText.split(/\n/);
+        }
+        paragraphs = paragraphs.filter(p => p.trim().length > 0);
+        const tokensList = [];
+        for (let para of paragraphs) {
+            const tokens = await generateTokensFromText(para, articleId);
+            tokensList.push(tokens);
+        }
+        return { paragraphs, tokensList };
+    }
+
+    const baiyangRaw = `那是力争上游的一种树，笔直的干，笔直的枝。它的干呢，通常是丈把高，像是加以人工似的，一丈以内，绝无旁枝；它所有的桠枝呢，一律向上，而且紧紧靠拢，也像是加以人工似的，成为一束，绝无横斜逸出。它的宽大的叶子也是片片向上，几乎没有斜生的，更不用说倒垂了；它的皮，光滑而有银色的晕圈，微微泛出淡青色。这是虽在北方的风雪的下却保持着倔强挺立的一种树！哪怕只有碗来粗细罢，它却努力向上发展，高到丈许，两丈，参天耸立，不折不挠，对抗着西北风。
+
+这就是白杨树，西北极普通的一种树，然而决不是平凡的树。
+
+它没有婆娑的姿态，没有屈曲盘旋的虬枝，也许你要说它不美丽，——如果美是专指“婆娑”或“横斜逸出”之类而言，那么，白杨树算不得树中的好女子；但是它却是伟岸，正直，朴质，严肃，也不缺乏温和，更不用提它的坚强不屈与挺拔，它是树中的伟丈夫！
+
+当你在积雪初融的高原上走过，看见平坦的大地上傲然挺立这么一株或一排白杨树，难道你就只觉得树只是树，难道你就不想到它的朴质，严肃，坚强不屈，至少也象征了北方的农民；难道你竟一点儿也不联想到在敌后的广大土地上，到处有坚强不屈，就像这白杨树一样傲然挺立的守卫他们家乡的哨兵！难道你又不更远一点儿想到这样枝枝叶叶靠紧团结，力求上进的白杨树，宛然象征了今天在华北平原纵横决荡用血写出新中国历史的哪种精神和意志。`;
+
+    const chabieRaw = `两个同龄的年轻人同时受雇于一家店铺，并且拿同样的薪水。
+可是一段时间后，叫阿诺德的那个小伙子青云直上，而那个叫布鲁诺的小伙子却仍在原地踏步。布鲁诺很不满意老板的不公正待遇。终于有一天他到老板那儿发牢骚了。
+老板一边耐心地听着他的抱怨，一边在心里盘算着怎样向他解释清楚他和阿诺德之间的差别。
+“布鲁诺先生，”老板开口说话了，“您现在到集市上去一下，看看今天早上有什么卖的。”
+布鲁诺从集市上回来向老板汇报说，今早集市上只有一个农民拉了一车土豆在卖。
+“有多少？”老板问。
+布鲁诺赶快戴上帽子又跑到集上，然后回来告诉老板一共四十袋土豆。
+“价格是多少？”
+布鲁诺又第三次跑到集上问来了价格。
+“好吧，”老板对他说，“现在请您坐到这把椅子上一句话也不要说，看看阿诺德怎么说。”
+阿诺德很快就从集市上回来了。向老板汇报说到现在为止只有一个农民在卖土豆，一共四十口袋，价格是多少多少；土豆质量很不错，他带回来一个让老板看看。这个农民一个钟头以后还会弄来几箱西红柿，据他看价格非常公道。昨天他们铺子的西红柿卖得很快，库存已经不多了。他想这么便宜的西红柿，老板肯定会要进一些的，所以他不仅带回了一个西红柿做样品，而且把那个农民也带来了，他现在正在外面等回话呢。
+此时老板转向了布鲁诺，说：“现在您肯定知道为什么阿诺德的薪水比您高了吧！”
+节选自张健鹏、胡足青主编《故事时代》`;
+
+    const choushiRaw = `我常常遗憾我家门前那块丑石：它黑黝黝地卧在那里，牛似的模样；谁也不知道是什么时候留在这里的，谁也不去理会它。只是麦收时节，门前摊了麦子，奶奶总是说：这块丑石，多占地面呀，抽空把它搬走吧。
+它不像汉白玉那样的细腻，可以刻字雕花，也不像大青石那样的光滑，可以供来浣纱捶布。它静静地卧在那里，院边的槐阴没有庇覆它，花儿也不再在它身边生长。荒草便繁衍出来，枝蔓上下，慢慢地，它竟锈上了绿苔、黑斑。我们这些做孩子的，也讨厌起它来，曾合伙要搬走它，但力气又不足；虽时时咒骂它，嫌弃它，也无可奈何，只好任它留在那里了。
+终有一日，村子里来了一个天文学家。他在我家门前路过，突然发现了这块石头，眼光立即就拉直了。他再没有离开，就住了下来；以后又来了好些人，都说这是一块陨石，从天上落下来已经有二三百年了，是一件了不起的东西。不久便来了车，小心翼翼地将它运走了。
+这使我们都很惊奇，这又怪又丑的石头，原来是天上的啊！它补过天，在天上发过热、闪过光，我们的先祖或许仰望过它，它给了他们光明、向往、憧憬；而它落下来了，在污土里，荒草里，一躺就是几百年了！
+我感到自己的无知，也感到了丑石的伟大，我甚至怨恨它这么多年竟会默默地忍受着这一切！而我又立即深深地感到它那种不屈于误解、寂寞的生存的伟大。
+节选自贾平凹《丑石》`;
+
+    const daruiRaw = `在达瑞八岁的时候，有一天他想去看电影。因为没有钱，他想是向爸妈要钱还是自己挣钱。最后他选择了后者。他自己调制了一种汽水，向过路的行人出售。可那时正是寒冷的冬天，没有人买，只有两个人例外——他的爸爸和妈妈。
+他偶然有一个和非常成功的商人谈话的机会。当他向商人讲述了自己的“破产史”后，商人给了他两个重要的建议：一是尝试为别人解决一个难题；二是把精力集中在你知道的、你会和你拥有的东西上。
+这两个建议很关键。因为对于一个八岁的孩子而言，他不会做的事情很多。于是他穿过大街小巷，不停地思考：人们会有什么难题，他又如何利用这个机会。
+一天，吃早饭时父亲让达瑞去取报纸。美国的送报员总是把报纸从花园篱笆的一个特制的管子里塞进来。假如你想穿着睡衣舒舒服服地吃早饭和看报纸，就必须离开温暖的房间，冒着寒风，到花园去取。虽然路短，但十分麻烦。
+当达瑞为父亲取报纸的时候，一个主意诞生了。当天他就按响邻居的门铃，对他们说，每个月只需付给他一美元，他就每天早上把报纸塞到他们的房门底下。大多数人都同意了，很快他有了七十多个顾客。一个月后，当他拿到自己赚的钱时觉得自己简直是飞上了天。
+很快他又有了新的机会，他让他的顾客每天把垃圾袋放在门前，然后由他早上运到垃圾桶里，每个月加一美元。之后他还想出了许多孩子赚钱的办法，并把它集结成书，书名为《儿童挣钱的二百五十个主意》。为此，达瑞十二岁时就成了畅销书作家，十五岁有了自己的谈话节目，十七岁就拥有了几百万美元。
+节选自[德]博多·舍费尔《达瑞的故事》`;
+
+    async function initArticles() {
+        const baiyangParsed = await parseArticleWithParagraphs(baiyangRaw, 'baiyang');
+        const chabieParsed = await parseArticleWithParagraphs(chabieRaw);
+        const choushiParsed = await parseArticleWithParagraphs(choushiRaw);
+        const daruiParsed = await parseArticleWithParagraphs(daruiRaw);
+        articlesDB = [
+            { id: 'baiyang', title: '白杨礼赞', paragraphs: baiyangParsed.paragraphs, tokensList: baiyangParsed.tokensList, isBuiltin: true },
+            { id: 'chabie', title: '差别', paragraphs: chabieParsed.paragraphs, tokensList: chabieParsed.tokensList, isBuiltin: true },
+            { id: 'choushi', title: '丑石', paragraphs: choushiParsed.paragraphs, tokensList: choushiParsed.tokensList, isBuiltin: true },
+            { id: 'darui', title: '达瑞的故事', paragraphs: daruiParsed.paragraphs, tokensList: daruiParsed.tokensList, isBuiltin: true }
+        ];
+        localStorage.setItem('articlesDB', JSON.stringify(articlesDB));
+    }
+
+    async function renderArticleReader() {
+        const container = document.getElementById('articleReader');
+        if (!currentArticle || !currentArticle.tokensList) {
+            container.innerHTML = '请选择文章';
+            return;
+        }
+        const { paragraphs, tokensList } = currentArticle;
+        let html = '';
+        for (let idx = 0; idx < paragraphs.length; idx++) {
+            const tokens = tokensList[idx];
+            if (showPinyinArticle) {
+                let paraHtml = '';
+                for (let t of tokens) {
+                    if (/[\u4e00-\u9fa5]/.test(t.char)) {
+                        paraHtml += `<span class="pinyin-wrapper" data-char="${t.char}">
+                                        <span class="pinyin">${t.pinyin}</span>
+                                        <span class="hanzi">${t.char}</span>
+                                     </span>`;
+                    } else {
+                        paraHtml += `<span class="punc">${t.char}</span>`;
+                    }
+                }
+                html += `<p>${paraHtml}</p>`;
+            } else {
+                let paraHtml = '';
+                for (let t of tokens) {
+                    if (/[\u4e00-\u9fa5]/.test(t.char)) {
+                        paraHtml += `<span class="char" data-char="${t.char}">${t.char}</span>`;
+                    } else {
+                        paraHtml += t.char;
+                    }
+                }
+                html += `<p>${paraHtml}</p>`;
+            }
+        }
+        container.innerHTML = html;
+        attachEventsToCharacters(container, showPinyinArticle);
+        container.style.fontSize = fontSize + 'rem';
+    }
+
+    function attachEventsToCharacters(container, isPinyinMode) {
+        let elements;
+        if (isPinyinMode) {
+            elements = container.querySelectorAll('.pinyin-wrapper');
+        } else {
+            elements = container.querySelectorAll('.char');
+        }
+        const speak = (text) => {
+            if (!text) return;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
+            utterance.rate = 0.9;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+        };
+        const addToMistake = (word) => {
+            let existing = errorWords.find(e => e.word === word);
+            if (existing) {
+                existing.wrongCount += 1;
+                existing.addTime = Date.now();
+            } else {
+                errorWords.push({
+                    id: Date.now(),
+                    word: word,
+                    wrongCount: 1,
+                    addTime: Date.now(),
+                    nextReviewDate: getNextReviewDate(0),
+                });
+            }
+            localStorage.setItem('errorWords', JSON.stringify(errorWords));
+            showToast(`✅ “${word}” 已加入错题本`);
+            if (document.getElementById('reviewPanel').style.display !== 'none') renderReviewPanel();
+        };
+        elements.forEach(el => {
+            let word = '';
+            if (isPinyinMode) {
+                word = el.querySelector('.hanzi')?.innerText || '';
+            } else {
+                word = el.getAttribute('data-char') || el.innerText;
+            }
+            if (!word) return;
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                speak(word);
+            });
+            el.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (confirm(`是否将“${word}”加入错题本？`)) {
+                    addToMistake(word);
+                }
+                return false;
+            });
+            el.style.cursor = 'pointer';
+        });
+    }
+
+    async function renderCustomReader() {
+        const container = document.getElementById('customReader');
+        if (!currentCustomTokens.length) {
+            container.innerHTML = '暂无内容，请在上方输入文本或上传图片生成。';
+            return;
+        }
+        if (showPinyinCustom) {
+            let html = '';
+            for (let t of currentCustomTokens) {
+                if (/[\u4e00-\u9fa5]/.test(t.char)) {
+                    html += `<span class="pinyin-wrapper" data-char="${t.char}">
+                                <span class="pinyin">${t.pinyin}</span>
+                                <span class="hanzi">${t.char}</span>
+                             </span>`;
+                } else {
+                    html += `<span class="punc">${t.char}</span>`;
+                }
+            }
+            container.innerHTML = `<p>${html}</p>`;
+            attachEventsToCharacters(container, true);
+        } else {
+            let html = '';
+            for (let t of currentCustomTokens) {
+                if (/[\u4e00-\u9fa5]/.test(t.char)) {
+                    html += `<span class="char" data-char="${t.char}">${t.char}</span>`;
+                } else {
+                    html += t.char;
+                }
+            }
+            container.innerHTML = `<p>${html}</p>`;
+            attachEventsToCharacters(container, false);
+        }
+        container.style.fontSize = fontSize + 'rem';
+    }
+
+    function getNextReviewDate(wrongCount) {
+        let days = [1,2,4,7,15];
+        let idx = Math.min(wrongCount, days.length-1);
+        let date = new Date();
+        date.setDate(date.getDate() + days[idx]);
+        return date.toISOString().slice(0,10);
+    }
+
+    function getTodayReviewCount() {
+        const today = new Date().toISOString().slice(0,10);
+        return errorWords.filter(w => w.nextReviewDate === today).length;
+    }
+
+    async function renderReviewPanel() {
+        let words = [...errorWords];
+        if (window.currentSort === 'new') {
+            words.sort((a,b) => b.addTime - a.addTime);
+        }
+        const statsDiv = document.getElementById('reviewStats');
+        statsDiv.innerHTML = `共 ${words.length} 个错字 | 今日需复习: ${getTodayReviewCount()}`;
+        const container = document.getElementById('wordListContainer');
+        if (words.length === 0) {
+            container.innerHTML = '<div style="padding:20px;text-align:center">暂无错字，去阅读文章添加吧~</div>';
+            container.style.fontSize = reviewFontSize + 'rem';
+            return;
+        }
+        let html = '';
+        for (let w of words) {
+            if (showPinyinReview) {
+                let pinyin = '';
+                if (window.pinyinPro) {
+                    pinyin = window.pinyinPro.pinyin(w.word, { toneType: 'symbol' });
+                }
+                html += `<div class="word-badge" data-word="${w.word}" data-id="${w.id}">
+                            <span>${w.word}</span>
+                            <span class="pinyin-part">(${pinyin})</span>
+                            <span style="font-size:0.7rem">(错${w.wrongCount}次)</span>
+                         </div>`;
+            } else {
+                html += `<div class="word-badge" data-word="${w.word}" data-id="${w.id}">
+                            <span>${w.word}</span>
+                            <span style="font-size:0.7rem">(错${w.wrongCount}次)</span>
+                         </div>`;
+            }
+        }
+        container.innerHTML = html;
+        container.style.fontSize = reviewFontSize + 'rem';
+        document.querySelectorAll('.word-badge').forEach(el => {
+            const word = el.getAttribute('data-word');
+            const id = parseInt(el.getAttribute('data-id'));
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const utterance = new SpeechSynthesisUtterance(word);
+                utterance.lang = 'zh-CN';
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+            });
+            el.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (confirm(`是否从错题本中删除“${word}”？`)) {
+                    errorWords = errorWords.filter(w => w.id !== id);
+                    localStorage.setItem('errorWords', JSON.stringify(errorWords));
+                    renderReviewPanel();
+                    showToast(`已删除“${word}”`);
+                }
+                return false;
+            });
+            el.style.cursor = 'pointer';
+        });
+    }
+
+    function addCustomErrorWord() {
+        let inputWord = prompt("请输入要加入错题本的字或词：");
+        if (!inputWord) return;
+        inputWord = inputWord.trim();
+        if (inputWord === "") return;
+        if (!/[\u4e00-\u9fa5]/.test(inputWord)) {
+            showToast("请至少输入一个汉字");
+            return;
+        }
+        let existing = errorWords.find(e => e.word === inputWord);
+        if (existing) {
+            showToast(`“${inputWord}”已在错题本中`);
+            return;
+        }
+        errorWords.push({
+            id: Date.now(),
+            word: inputWord,
+            wrongCount: 1,
+            addTime: Date.now(),
+            nextReviewDate: getNextReviewDate(0),
+        });
+        localStorage.setItem('errorWords', JSON.stringify(errorWords));
+        renderReviewPanel();
+        showToast(`“${inputWord}” 已加入错题本`);
+    }
+
+    function showEbbinghausReview() {
+        const today = new Date().toISOString().slice(0,10);
+        const dueWords = errorWords.filter(w => w.nextReviewDate === today);
+        if (dueWords.length === 0) {
+            showToast('今天没有需要复习的字，真棒！');
+            return;
+        }
+        showToast(`今日需复习：${dueWords.map(w => w.word).join('、')}`);
+        const container = document.getElementById('wordListContainer');
+        if (container) {
+            const badges = container.querySelectorAll('.word-badge');
+            badges.forEach(badge => {
+                const word = badge.getAttribute('data-word');
+                if (dueWords.some(d => d.word === word)) {
+                    badge.style.backgroundColor = '#fde047';
+                }
+            });
+        }
+    }
+
+    async function saveCustomToCorpus() {
+        if (!currentCustomTokens.length) { showToast('没有内容可存'); return; }
+        const rawText = currentCustomTokens.map(t => t.char).join('');
+        const newId = 'custom_' + Date.now();
+        const paragraphs = [rawText];
+        const tokensList = [currentCustomTokens];
+        const newArticle = {
+            id: newId,
+            title: `自建文本 ${new Date().toLocaleDateString()}`,
+            paragraphs: paragraphs,
+            tokensList: tokensList,
+            isBuiltin: false
+        };
+        articlesDB.push(newArticle);
+        localStorage.setItem('articlesDB', JSON.stringify(articlesDB));
+        updateArticleSelect();
+        showToast('已存入资料库');
+    }
+
+    function deleteCurrentArticle() {
+        if (!currentArticle) return;
+        if (currentArticle.isBuiltin) {
+            showToast('内置文章不能删除');
+            return;
+        }
+        if (confirm(`确定要删除文章“${currentArticle.title}”吗？`)) {
+            const index = articlesDB.findIndex(a => a.id === currentArticle.id);
+            if (index !== -1) articlesDB.splice(index, 1);
+            localStorage.setItem('articlesDB', JSON.stringify(articlesDB));
+            const firstBuiltin = articlesDB.find(a => a.isBuiltin);
+            if (firstBuiltin) {
+                currentArticle = firstBuiltin;
+                updateArticleSelect();
+                renderArticleReader();
+            } else {
+                currentArticle = null;
+                updateArticleSelect();
+                document.getElementById('articleReader').innerHTML = '请选择文章';
+            }
+            showToast('已删除');
+        }
+    }
+
+    function updateArticleSelect() {
+        const select = document.getElementById('articleSelect');
+        select.innerHTML = '';
+        articlesDB.forEach(article => {
+            const option = document.createElement('option');
+            option.value = article.id;
+            option.textContent = article.title;
+            if (currentArticle && currentArticle.id === article.id) option.selected = true;
+            select.appendChild(option);
+        });
+    }
+
+    async function switchArticle(articleId) {
+        const article = articlesDB.find(a => a.id === articleId);
+        if (article) {
+            currentArticle = article;
+            await renderArticleReader();
+        }
+    }
+
+    (async function() {
+        await initArticles();
+        const stored = localStorage.getItem('articlesDB');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (parsed.length) articlesDB = parsed;
+            } catch(e) {}
+        } else {
+            localStorage.setItem('articlesDB', JSON.stringify(articlesDB));
+        }
+        const storedErr = localStorage.getItem('errorWords');
+        if (storedErr) errorWords = JSON.parse(storedErr);
+        currentArticle = articlesDB.find(a => a.id === 'baiyang');
+        updateArticleSelect();
+        await renderArticleReader();
+
+        document.getElementById('articleSelect').addEventListener('change', (e) => {
+            switchArticle(e.target.value);
+        });
+        document.getElementById('deleteCustomBtn').addEventListener('click', deleteCurrentArticle);
+        document.getElementById('togglePinyinBtn').addEventListener('click', () => {
+            showPinyinArticle = !showPinyinArticle;
+            renderArticleReader();
+        });
+        const setFontSize = (delta) => {
+            fontSize = Math.min(2.2, Math.max(0.8, fontSize + delta));
+            renderArticleReader();
+            renderCustomReader();
+        };
+        document.getElementById('fontPlus').addEventListener('click', () => setFontSize(0.1));
+        document.getElementById('fontMinus').addEventListener('click', () => setFontSize(-0.1));
+        document.getElementById('generateFromTextBtn').addEventListener('click', async () => {
+            const text = document.getElementById('customText').value;
+            if (!text.trim()) { showToast('请输入文本'); return; }
+            currentCustomTokens = await generateTokensFromText(text);
+            renderCustomReader();
+        });
+        document.getElementById('customTogglePinyin').addEventListener('click', () => {
+            showPinyinCustom = !showPinyinCustom;
+            renderCustomReader();
+        });
+        document.getElementById('customAddToCorpus').addEventListener('click', saveCustomToCorpus);
+        document.getElementById('clearCustom').addEventListener('click', () => {
+            currentCustomTokens = [];
+            document.getElementById('customReader').innerHTML = '已清空';
+            document.getElementById('customText').value = '';
+        });
+        const imageInput = document.getElementById('imageUpload');
+        imageInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const status = document.getElementById('ocrStatus');
+            status.innerText = '识别中...';
+            try {
+                const { data: { text } } = await Tesseract.recognize(file, 'chi_sim');
+                if (text) {
+                    document.getElementById('customText').value = text;
+                    status.innerText = '识别完成，点击“生成拼音文本”';
+                } else {
+                    status.innerText = '未识别到文字';
+                }
+            } catch(err) {
+                status.innerText = '识别失败';
+            }
+            e.target.value = '';
+        });
+        document.getElementById('sortByNew').addEventListener('click', () => { window.currentSort = 'new'; renderReviewPanel(); });
+        document.getElementById('togglePinyinReview').addEventListener('click', () => {
+            showPinyinReview = !showPinyinReview;
+            renderReviewPanel();
+        });
+        document.getElementById('reviewEbbinghaus').addEventListener('click', showEbbinghausReview);
+        document.getElementById('addCustomErrorBtn').addEventListener('click', addCustomErrorWord);
+        const setReviewFont = (delta) => {
+            reviewFontSize = Math.min(2, Math.max(0.8, reviewFontSize + delta));
+            renderReviewPanel();
+        };
+        document.getElementById('reviewFontPlus').addEventListener('click', () => setReviewFont(0.1));
+        document.getElementById('reviewFontMinus').addEventListener('click', () => setReviewFont(-0.1));
+        window.currentSort = 'new';
+        renderReviewPanel();
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.mode;
+                document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+                document.getElementById(mode + 'Panel').style.display = 'block';
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (mode === 'review') renderReviewPanel();
+            });
+        });
+    })();
+</script>
+</body>
+</html>
