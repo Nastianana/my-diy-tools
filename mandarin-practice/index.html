@@ -295,7 +295,7 @@
         <button class="mode-btn" data-mode="review">复习</button>
     </div>
 
-    <!-- 语音启用按钮区域（挪到选项卡下方） -->
+    <!-- 语音启用按钮区域 -->
     <div class="speech-enable-area">
         <button id="enableSpeechBtn">点击启用语音</button>
     </div>
@@ -380,8 +380,8 @@
     let currentCustomTokens = [];
     let showPinyinArticle = false;
     let showPinyinCustom = false;
-    let fontSize = 1.2;   // 读文章区域字体基准
-    let reviewFontSize = 1.2; // 复习模块错字列表字体基准
+    let fontSize = 1.2;
+    let reviewFontSize = 1.2;
     let showPinyinReview = false;
 
     let speechEnabled = false;
@@ -394,30 +394,54 @@
         setTimeout(() => toast.remove(), 2000);
     }
 
+    // 核心发音函数
     function speakText(text) {
         if (!text) return;
         if (!speechEnabled) {
             showToast('请先点击“点击启用语音”按钮');
             return;
         }
+        // 取消任何正在播放的语音，避免堆积
+        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'zh-CN';
         utterance.rate = 0.9;
-        window.speechSynthesis.cancel();
+        utterance.onerror = (event) => {
+            console.error('语音错误', event);
+            showToast('发音失败，请重新点击启用语音按钮');
+            // 如果失败，重置启用状态，让用户再次点击
+            speechEnabled = false;
+            const btn = document.getElementById('enableSpeechBtn');
+            btn.innerText = '点击启用语音';
+            btn.classList.remove('enabled');
+            btn.disabled = false;
+        };
         window.speechSynthesis.speak(utterance);
     }
 
+    // 启用语音（必须在用户手势回调中同步执行）
     function enableSpeech() {
-        // 尝试播放一个极短的空语音来激活权限
-        const utterance = new SpeechSynthesisUtterance(' ');
-        utterance.lang = 'zh-CN';
-        utterance.volume = 0;
-        speechSynthesis.speak(utterance);
-        speechEnabled = true;
-        const btn = document.getElementById('enableSpeechBtn');
-        btn.innerText = '已启用语音点读';
-        btn.classList.add('enabled');
-        showToast('语音已启用，现在可以点击汉字发音');
+        // 先取消任何待播放语音
+        window.speechSynthesis.cancel();
+        // 播放一个简短的词语来激活权限（不是静音）
+        const testUtterance = new SpeechSynthesisUtterance('你好');
+        testUtterance.lang = 'zh-CN';
+        testUtterance.rate = 0.9;
+        testUtterance.onend = () => {
+            // 语音播放成功后标记已启用
+            speechEnabled = true;
+            const btn = document.getElementById('enableSpeechBtn');
+            btn.innerText = '已启用语音点读';
+            btn.classList.add('enabled');
+            btn.disabled = true;
+            showToast('语音已启用，现在可以点击汉字发音');
+        };
+        testUtterance.onerror = (e) => {
+            console.error('语音启用失败', e);
+            showToast('语音启用失败，请检查手机设置或刷新页面后重试');
+            // 不改变按钮状态，让用户可再次点击
+        };
+        window.speechSynthesis.speak(testUtterance);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
