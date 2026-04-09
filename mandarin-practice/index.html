@@ -362,7 +362,6 @@
     // 预热语音引擎
     if (isSpeechSupported) {
         window.speechSynthesis.getVoices();
-        // 播放一个空语音激活音频上下文
         const silent = new SpeechSynthesisUtterance(' ');
         silent.lang = 'zh-CN';
         silent.volume = 0;
@@ -377,7 +376,6 @@
         setTimeout(() => toast.remove(), 2000);
     }
 
-    // 发音函数：每次调用前取消当前语音，确保立即响应
     function speakText(text) {
         if (!text) return;
         if (!isSpeechSupported) {
@@ -385,7 +383,7 @@
             return;
         }
         try {
-            window.speechSynthesis.cancel(); // 清除队列，避免堆积
+            window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'zh-CN';
             utterance.rate = 0.9;
@@ -416,14 +414,12 @@
         if (document.getElementById('reviewPanel').style.display !== 'none') renderReviewPanel();
     }
 
-    // 为单个元素绑定事件（单击发音，长按/右键加入错题本）
     function attachEventsToElement(el, word, context) {
         if (!el || !word) return;
 
         let longPressTimer = null;
         let isLongPressing = false;
 
-        // 清除定时器并重置标志
         function clearLongPress() {
             if (longPressTimer) {
                 clearTimeout(longPressTimer);
@@ -432,10 +428,8 @@
             isLongPressing = false;
         }
 
-        // 长按触发
         function onLongPress() {
             isLongPressing = true;
-            // 阻止系统默认菜单（复制/粘贴）
             const evt = new Event('contextmenu');
             evt.preventDefault();
             if (confirm(`是否将“${word}”加入错题本？`)) {
@@ -444,28 +438,20 @@
             clearLongPress();
         }
 
-        // 触摸开始
         const touchStartHandler = (e) => {
             clearLongPress();
             longPressTimer = setTimeout(onLongPress, 500);
         };
-
-        // 触摸移动或结束取消长按
         const touchCancelHandler = () => {
             clearLongPress();
         };
-
-        // 单击（发音）在click事件中处理，但需要避免长按后也触发click
         const clickHandler = (e) => {
             if (isLongPressing) {
-                // 如果刚刚触发了长按，忽略本次单击
                 e.stopPropagation();
                 return;
             }
             speakText(word);
         };
-
-        // 电脑端右键加入错题本
         const contextMenuHandler = (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -482,6 +468,7 @@
         el.addEventListener('contextmenu', contextMenuHandler);
     }
 
+    // 修正白杨礼赞中所有“干”的读音为 gàn
     async function generateTokensFromText(text, articleId = null) {
         if (!window.pinyinPro) return [];
         const { pinyin } = window.pinyinPro;
@@ -491,12 +478,9 @@
             let ch = chars[i];
             if (/[\u4e00-\u9fa5]/.test(ch)) {
                 let py = pinyin(ch, { toneType: 'symbol' });
+                // 针对白杨礼赞中的“干”统一改为 gàn
                 if (articleId === 'baiyang' && ch === '干') {
-                    const prev = i > 0 ? chars[i-1] : '';
-                    const next = i < chars.length-1 ? chars[i+1] : '';
-                    if (prev === '的' && (next === '，' || next === '。' || next === '；' || next === ' ')) {
-                        py = 'gàn';
-                    }
+                    py = 'gàn';
                 }
                 tokens.push({ char: ch, pinyin: py });
             } else {
@@ -736,9 +720,7 @@
         document.querySelectorAll('.word-badge').forEach(el => {
             const word = el.getAttribute('data-word');
             const id = parseInt(el.getAttribute('data-id'));
-            // 复用 attachEventsToElement 或手动绑定
             attachEventsToElement(el, word, '');
-            // 删除功能需要单独处理（因为删除的确认不同）
             el.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -750,7 +732,6 @@
                 }
                 return false;
             });
-            // 长按删除（移动端）
             let deleteTimer = null;
             el.addEventListener('touchstart', (e) => {
                 deleteTimer = setTimeout(() => {
