@@ -29,7 +29,6 @@
             margin: 0 auto;
         }
 
-        /* 模式切换 */
         .mode-tabs {
             display: flex;
             gap: 16px;
@@ -83,7 +82,6 @@
             border-radius: 40px;
         }
 
-        /* 通用按钮样式 */
         button, label.btn-like {
             background: #E3E5CF;
             border: none;
@@ -131,7 +129,6 @@
             color: #112612;
         }
 
-        /* 阅读区样式保持不变（但未修复排版问题，仅修复长按） */
         .reading-area {
             background: #fefce8;
             border-radius: 28px;
@@ -278,7 +275,6 @@
         <button class="mode-btn" data-mode="review">复习</button>
     </div>
 
-    <!-- 读文章模块 -->
     <div id="readPanel" class="panel">
         <div class="card">
             <div class="card-title">资料库</div>
@@ -329,7 +325,6 @@
         </div>
     </div>
 
-    <!-- 复习模块 -->
     <div id="reviewPanel" class="panel" style="display:none;">
         <div class="card">
             <div class="card-title">错题本复习</div>
@@ -347,7 +342,7 @@
             </div>
         </div>
     </div>
-    <footer>左键单击发音，右键/长按加入错题本 | 复习模块右键单击错字删除</footer>
+    <footer>单击发音，长按/右键加入错题本 | 复习模块右键/长按删除错字</footer>
 </div>
 
 <script>
@@ -362,12 +357,16 @@
     let reviewFontSize = 1.2;
     let showPinyinReview = false;
 
-    // 语音支持检测
     const isSpeechSupported = window.speechSynthesis && window.SpeechSynthesisUtterance;
 
+    // 预热语音引擎
     if (isSpeechSupported) {
         window.speechSynthesis.getVoices();
-        window.speechSynthesis.onvoiceschanged = () => {};
+        // 播放一个空语音激活音频上下文
+        const silent = new SpeechSynthesisUtterance(' ');
+        silent.lang = 'zh-CN';
+        silent.volume = 0;
+        window.speechSynthesis.speak(silent);
     }
 
     function showToast(msg) {
@@ -378,6 +377,7 @@
         setTimeout(() => toast.remove(), 2000);
     }
 
+    // 发音函数：每次调用前取消当前语音，确保立即响应
     function speakText(text) {
         if (!text) return;
         if (!isSpeechSupported) {
@@ -385,6 +385,7 @@
             return;
         }
         try {
+            window.speechSynthesis.cancel(); // 清除队列，避免堆积
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'zh-CN';
             utterance.rate = 0.9;
@@ -395,7 +396,6 @@
         }
     }
 
-    // 添加错题本（通用）
     function addToMistake(word, context) {
         let existing = errorWords.find(e => e.word === word);
         if (existing) {
@@ -416,53 +416,70 @@
         if (document.getElementById('reviewPanel').style.display !== 'none') renderReviewPanel();
     }
 
-    // 为元素绑定事件（单击发音，右键/长按加入错题本）
+    // 为单个元素绑定事件（单击发音，长按/右键加入错题本）
     function attachEventsToElement(el, word, context) {
         if (!el || !word) return;
 
-        // 单击发音
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
+        let longPressTimer = null;
+        let isLongPressing = false;
+
+        // 清除定时器并重置标志
+        function clearLongPress() {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+            isLongPressing = false;
+        }
+
+        // 长按触发
+        function onLongPress() {
+            isLongPressing = true;
+            // 阻止系统默认菜单（复制/粘贴）
+            const evt = new Event('contextmenu');
+            evt.preventDefault();
+            if (confirm(`是否将“${word}”加入错题本？`)) {
+                addToMistake(word, context);
+            }
+            clearLongPress();
+        }
+
+        // 触摸开始
+        const touchStartHandler = (e) => {
+            clearLongPress();
+            longPressTimer = setTimeout(onLongPress, 500);
+        };
+
+        // 触摸移动或结束取消长按
+        const touchCancelHandler = () => {
+            clearLongPress();
+        };
+
+        // 单击（发音）在click事件中处理，但需要避免长按后也触发click
+        const clickHandler = (e) => {
+            if (isLongPressing) {
+                // 如果刚刚触发了长按，忽略本次单击
+                e.stopPropagation();
+                return;
+            }
             speakText(word);
-        });
+        };
 
         // 电脑端右键加入错题本
-        el.addEventListener('contextmenu', (e) => {
+        const contextMenuHandler = (e) => {
             e.preventDefault();
             e.stopPropagation();
             if (confirm(`是否将“${word}”加入错题本？`)) {
                 addToMistake(word, context);
             }
             return false;
-        });
+        };
 
-        // 移动端长按模拟（iOS 需要）
-        let touchTimer = null;
-        const touchStartHandler = (e) => {
-            e.preventDefault(); // 阻止系统默认菜单
-            touchTimer = setTimeout(() => {
-                // 长按触发加入错题本
-                if (confirm(`是否将“${word}”加入错题本？`)) {
-                    addToMistake(word, context);
-                }
-                touchTimer = null;
-            }, 500);
-        };
-        const touchMoveHandler = () => {
-            if (touchTimer) {
-                clearTimeout(touchTimer);
-                touchTimer = null;
-            }
-        };
-        const touchEndHandler = () => {
-            if (touchTimer) {
-                clearTimeout(touchTimer);
-                touchTimer = null;
-            }
-        };
         el.addEventListener('touchstart', touchStartHandler);
-        el.addEventListener('touchmove', touchMoveHandler);
-        el.addEventListener('touchend', touchEndHandler);
+        el.addEventListener('touchmove', touchCancelHandler);
+        el.addEventListener('touchend', touchCancelHandler);
+        el.addEventListener('click', clickHandler);
+        el.addEventListener('contextmenu', contextMenuHandler);
     }
 
     async function generateTokensFromText(text, articleId = null) {
@@ -719,10 +736,9 @@
         document.querySelectorAll('.word-badge').forEach(el => {
             const word = el.getAttribute('data-word');
             const id = parseInt(el.getAttribute('data-id'));
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                speakText(word);
-            });
+            // 复用 attachEventsToElement 或手动绑定
+            attachEventsToElement(el, word, '');
+            // 删除功能需要单独处理（因为删除的确认不同）
             el.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -734,25 +750,24 @@
                 }
                 return false;
             });
-            // 移动端长按删除也添加模拟（可选）
-            let touchTimer = null;
+            // 长按删除（移动端）
+            let deleteTimer = null;
             el.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                touchTimer = setTimeout(() => {
+                deleteTimer = setTimeout(() => {
                     if (confirm(`是否从错题本中删除“${word}”？`)) {
                         errorWords = errorWords.filter(w => w.id !== id);
                         localStorage.setItem('errorWords', JSON.stringify(errorWords));
                         renderReviewPanel();
                         showToast(`已删除“${word}”`);
                     }
-                    touchTimer = null;
+                    deleteTimer = null;
                 }, 500);
             });
             el.addEventListener('touchmove', () => {
-                if (touchTimer) clearTimeout(touchTimer);
+                if (deleteTimer) clearTimeout(deleteTimer);
             });
             el.addEventListener('touchend', () => {
-                if (touchTimer) clearTimeout(touchTimer);
+                if (deleteTimer) clearTimeout(deleteTimer);
             });
             el.style.cursor = 'pointer';
         });
