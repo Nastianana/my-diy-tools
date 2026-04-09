@@ -131,6 +131,7 @@
             color: #112612;
         }
 
+        /* 阅读区样式保持不变（但未修复排版问题，仅修复长按） */
         .reading-area {
             background: #fefce8;
             border-radius: 28px;
@@ -152,6 +153,8 @@
             margin: 0;
             padding: 0;
             color: #112612;
+            -webkit-touch-callout: none;
+            user-select: none;
         }
         .reading-area .pinyin-wrapper {
             display: inline-flex;
@@ -162,6 +165,8 @@
             cursor: pointer;
             margin: 0;
             padding: 0;
+            -webkit-touch-callout: none;
+            user-select: none;
         }
         .reading-area .pinyin {
             font-size: 1.1em;
@@ -342,7 +347,7 @@
             </div>
         </div>
     </div>
-    <footer>左键单击发音，右键单击加入错题本 | 复习模块右键单击错字删除</footer>
+    <footer>左键单击发音，右键/长按加入错题本 | 复习模块右键单击错字删除</footer>
 </div>
 
 <script>
@@ -357,15 +362,12 @@
     let reviewFontSize = 1.2;
     let showPinyinReview = false;
 
-    // 预加载语音列表，确保引擎就绪（不播放任何声音，仅触发加载）
-    if (window.speechSynthesis) {
-        // 主动调用 getVoices 触发加载
+    // 语音支持检测
+    const isSpeechSupported = window.speechSynthesis && window.SpeechSynthesisUtterance;
+
+    if (isSpeechSupported) {
         window.speechSynthesis.getVoices();
-        // 对于某些浏览器，需要监听 voiceschanged 事件来确保列表完全加载
-        window.speechSynthesis.onvoiceschanged = () => {
-            // 语音列表已就绪，无需额外操作
-            console.log('语音引擎已就绪');
-        };
+        window.speechSynthesis.onvoiceschanged = () => {};
     }
 
     function showToast(msg) {
@@ -376,21 +378,91 @@
         setTimeout(() => toast.remove(), 2000);
     }
 
-    // 最终确认的发音函数：直接、同步调用 speak，不添加任何异步、队列、cancel
     function speakText(text) {
         if (!text) return;
-        if (!window.speechSynthesis) {
+        if (!isSpeechSupported) {
             showToast('您的浏览器不支持语音朗读');
             return;
         }
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = 0.9;
-        utterance.onerror = (e) => {
-            console.error('语音错误', e);
-            // 静默失败，不打扰用户
+        try {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
+            utterance.rate = 0.9;
+            utterance.onerror = () => {};
+            window.speechSynthesis.speak(utterance);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // 添加错题本（通用）
+    function addToMistake(word, context) {
+        let existing = errorWords.find(e => e.word === word);
+        if (existing) {
+            existing.wrongCount += 1;
+            existing.addTime = Date.now();
+        } else {
+            errorWords.push({
+                id: Date.now(),
+                word: word,
+                wrongCount: 1,
+                addTime: Date.now(),
+                nextReviewDate: getNextReviewDate(0),
+                context: context || ''
+            });
+        }
+        localStorage.setItem('errorWords', JSON.stringify(errorWords));
+        showToast(`✅ “${word}” 已加入错题本`);
+        if (document.getElementById('reviewPanel').style.display !== 'none') renderReviewPanel();
+    }
+
+    // 为元素绑定事件（单击发音，右键/长按加入错题本）
+    function attachEventsToElement(el, word, context) {
+        if (!el || !word) return;
+
+        // 单击发音
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            speakText(word);
+        });
+
+        // 电脑端右键加入错题本
+        el.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (confirm(`是否将“${word}”加入错题本？`)) {
+                addToMistake(word, context);
+            }
+            return false;
+        });
+
+        // 移动端长按模拟（iOS 需要）
+        let touchTimer = null;
+        const touchStartHandler = (e) => {
+            e.preventDefault(); // 阻止系统默认菜单
+            touchTimer = setTimeout(() => {
+                // 长按触发加入错题本
+                if (confirm(`是否将“${word}”加入错题本？`)) {
+                    addToMistake(word, context);
+                }
+                touchTimer = null;
+            }, 500);
         };
-        window.speechSynthesis.speak(utterance);
+        const touchMoveHandler = () => {
+            if (touchTimer) {
+                clearTimeout(touchTimer);
+                touchTimer = null;
+            }
+        };
+        const touchEndHandler = () => {
+            if (touchTimer) {
+                clearTimeout(touchTimer);
+                touchTimer = null;
+            }
+        };
+        el.addEventListener('touchstart', touchStartHandler);
+        el.addEventListener('touchmove', touchMoveHandler);
+        el.addEventListener('touchend', touchEndHandler);
     }
 
     async function generateTokensFromText(text, articleId = null) {
@@ -550,24 +622,6 @@
         } else {
             elements = container.querySelectorAll('.char');
         }
-        const addToMistake = (word) => {
-            let existing = errorWords.find(e => e.word === word);
-            if (existing) {
-                existing.wrongCount += 1;
-                existing.addTime = Date.now();
-            } else {
-                errorWords.push({
-                    id: Date.now(),
-                    word: word,
-                    wrongCount: 1,
-                    addTime: Date.now(),
-                    nextReviewDate: getNextReviewDate(0),
-                });
-            }
-            localStorage.setItem('errorWords', JSON.stringify(errorWords));
-            showToast(`✅ “${word}” 已加入错题本`);
-            if (document.getElementById('reviewPanel').style.display !== 'none') renderReviewPanel();
-        };
         elements.forEach(el => {
             let word = '';
             if (isPinyinMode) {
@@ -576,19 +630,7 @@
                 word = el.getAttribute('data-char') || el.innerText;
             }
             if (!word) return;
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                speakText(word);
-            });
-            el.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (confirm(`是否将“${word}”加入错题本？`)) {
-                    addToMistake(word);
-                }
-                return false;
-            });
-            el.style.cursor = 'pointer';
+            attachEventsToElement(el, word, currentArticle?.content || '');
         });
     }
 
@@ -691,6 +733,26 @@
                     showToast(`已删除“${word}”`);
                 }
                 return false;
+            });
+            // 移动端长按删除也添加模拟（可选）
+            let touchTimer = null;
+            el.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchTimer = setTimeout(() => {
+                    if (confirm(`是否从错题本中删除“${word}”？`)) {
+                        errorWords = errorWords.filter(w => w.id !== id);
+                        localStorage.setItem('errorWords', JSON.stringify(errorWords));
+                        renderReviewPanel();
+                        showToast(`已删除“${word}”`);
+                    }
+                    touchTimer = null;
+                }, 500);
+            });
+            el.addEventListener('touchmove', () => {
+                if (touchTimer) clearTimeout(touchTimer);
+            });
+            el.addEventListener('touchend', () => {
+                if (touchTimer) clearTimeout(touchTimer);
             });
             el.style.cursor = 'pointer';
         });
